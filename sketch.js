@@ -25,7 +25,8 @@ let dialogueData = { text: "", type: "MSG", options: [] }; // type: "MSG" (訊�
 let levelState = {
   solved: false,          // 這一關是否已過關 (門是否開啟)
   currentQ: null,         // 當前抽到的題目
-  doorOpenStartFrame: 0   // 門開始開啟的幀數
+  doorOpenStartFrame: 0,  // 門開始開啟的幀數
+  correctCount: 0         // 當前關卡已答對題數
 };
 
 // 題庫資料 (Level 1, 2, 3 對應不同提問者)
@@ -91,10 +92,11 @@ function setup() {
     [allQuestions[i], allQuestions[j]] = [allQuestions[j], allQuestions[i]];
   }
 
-  // 分配題目給 Level 1, 2, 3 (使用取餘數運算確保題目不夠時也能運作)
-  questionsDB[1] = [allQuestions[0 % allQuestions.length]];
-  questionsDB[2] = [allQuestions[1 % allQuestions.length]];
-  questionsDB[3] = [allQuestions[2 % allQuestions.length]];
+  // 分配題目給 Level 1, 2, 3 (每關 2 題)
+  let qIdx = 0;
+  questionsDB[1] = [allQuestions[qIdx++ % allQuestions.length], allQuestions[qIdx++ % allQuestions.length]];
+  questionsDB[2] = [allQuestions[qIdx++ % allQuestions.length], allQuestions[qIdx++ % allQuestions.length]];
+  questionsDB[3] = [allQuestions[qIdx++ % allQuestions.length], allQuestions[qIdx++ % allQuestions.length]];
 }
 
 function draw() {
@@ -590,6 +592,7 @@ function nextLevel() {
     levelState.doorOpenStartFrame = frameCount - 1000; // 讓門保持開啟狀態 (跳過開啟動畫)
   } else {
     levelState.solved = false; // 重置關卡狀態
+    levelState.correctCount = 0; // 重置答對題數
   }
   
   levelState.currentQ = null; // 重置題目
@@ -654,9 +657,9 @@ function checkInteraction() {
       if (levelState.solved) {
         showDialogue("門已經開了，快前往下一關吧！", "MSG");
       } else {
-        // 抽題邏輯：如果還沒抽過，隨機抽一題
+        // 抽題邏輯：如果還沒抽過，依序抽題
         if (!levelState.currentQ) {
-          levelState.currentQ = random(questionsDB[currentLevel]);
+          levelState.currentQ = questionsDB[currentLevel][levelState.correctCount];
         }
         showDialogue(levelState.currentQ.q, "Q", levelState.currentQ.options);
       }
@@ -674,10 +677,17 @@ function checkAnswer(optionIndex) {
   // 選項是 "1. xxx", 我們取第一個字元 '1' 或 '2' 來比對
   let selectedAns = (optionIndex + 1).toString();
   if (selectedAns === levelState.currentQ.ans) {
-    levelState.solved = true;
-    levelsSolved[currentLevel] = true; // 標記此關卡已解鎖
-    levelState.doorOpenStartFrame = frameCount; // 紀錄開啟時間
-    showDialogue("回答正確！門打開了。", "MSG");
+    levelState.correctCount++;
+    levelState.currentQ = null; // 清除當前題目，以便下次互動抽取下一題
+
+    if (levelState.correctCount >= 2) {
+      levelState.solved = true;
+      levelsSolved[currentLevel] = true; // 標記此關卡已解鎖
+      levelState.doorOpenStartFrame = frameCount; // 紀錄開啟時間
+      showDialogue("回答正確！門打開了。", "MSG");
+    } else {
+      showDialogue("回答正確！還需要回答 1 題。", "MSG");
+    }
   } else {
     showDialogue("回答錯誤... (按 0 查看提示)", "MSG");
   }
